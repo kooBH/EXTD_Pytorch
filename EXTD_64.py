@@ -15,7 +15,6 @@ import torch.nn.functional as F
 from layers.modules.l2norm import L2Norm
 from layers.functions.prior_box import PriorBox
 from layers.functions.detection import Detect
-from torch.autograd import Variable
 
 from layers import *
 from data.config import cfg
@@ -75,6 +74,7 @@ class EXTD(nn.Module):
         if self.phase == 'test':
             self.softmax = nn.Softmax(dim=-1)
             self.detect = Detect(cfg)
+            self.d= self.detect.apply
 
     def forward(self, x):
         """Applies network layers and ops on input image(s) x.
@@ -183,19 +183,19 @@ class EXTD(nn.Module):
             features_maps += [feat]
 
         self.priorbox = PriorBox(size, features_maps, cfg)
-        self.priors = Variable(self.priorbox.forward(), volatile=True)
+        #self.priors = Variable(self.priorbox.forward(), volatile=True)
+        self.priors = self.priorbox.forward()
 
         loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
 
         if self.phase == 'test':
-            output = self.detect(
+            output = self.d(self.detect,
                 loc.view(loc.size(0), -1, 4),  # loc preds
                 self.softmax(conf.view(conf.size(0), -1,
                                        self.num_classes)),  # conf preds
                 self.priors.type(type(x.data))  # default boxes
             )
-
         else:
             output = (
                 loc.view(loc.size(0), -1, 4),

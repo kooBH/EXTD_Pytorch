@@ -11,6 +11,7 @@ from torch.autograd import Function
 
 
 class Detect(Function):
+#class Detect(torch.nn.Module):
     """At test time, Detect is the final layer of SSD.  Decode location preds,
     apply non-maximum suppression to location predictions based on conf
     scores and threshold to a top_k number of output predictions for both
@@ -18,6 +19,7 @@ class Detect(Function):
     """
 
     def __init__(self, cfg):
+        print('init Function')
         self.num_classes = cfg.NUM_CLASSES
         self.top_k = cfg.TOP_K
         self.nms_thresh = cfg.NMS_THRESH
@@ -25,7 +27,8 @@ class Detect(Function):
         self.variance = cfg.VARIANCE
         self.nms_top_k = cfg.NMS_TOP_K
 
-    def forward(self, loc_data, conf_data, prior_data):
+    @staticmethod
+    def forward(ctx,self, loc_data, conf_data, prior_data):
         """
         Args:
             loc_data: (tensor) Loc preds from loc layers
@@ -35,6 +38,11 @@ class Detect(Function):
             prior_data: (tensor) Prior boxes and variances from priorbox layers
                 Shape: [1,num_priors,4] 
         """
+
+        loc_data = loc_data.to('cpu')
+        conf_data= conf_data.to('cpu')
+        prior_data = prior_data.to('cpu')
+
         num = loc_data.size(0)
         num_priors = prior_data.size(0)
 
@@ -50,6 +58,7 @@ class Detect(Function):
 
         output = torch.zeros(num, self.num_classes, self.top_k, 5)
 
+        
         for i in range(num):
             boxes = decoded_boxes[i].clone()
             conf_scores = conf_preds[i].clone()
@@ -70,5 +79,11 @@ class Detect(Function):
                                                        boxes_[ids[:count]]), 1)
                 except:
                     print('zero')
-
+        
+        ctx.save_for_backward(output)
         return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        print('Backward')
+        return None
